@@ -18,8 +18,49 @@ class FlaskrTestCase(unittest.TestCase):
 
         # Drop collection (significantly faster than dropping entire db)
         db.drop_collection('myobjects')
+        db.drop_collection('users')
 
-    # MyObject tests
+    # Trip tests
+    def test_posting_trip(self):
+        response = self.app.post(
+            '/trips/',
+            data=json.dumps(dict(
+                name="trip",
+                waypoints=[
+                    "456N,466E",
+                    "456N,445E"]
+            )),
+            content_type='application/json')
+
+        responseJSON = json.loads(response.data.decode())
+
+        self.assertEqual(response.status_code, 200)
+        assert 'application/json' in response.content_type
+        assert 'trip' in responseJSON["name"]
+        self.assertEqual(["456N,466E", "456N,445E"], responseJSON["waypoints"])
+
+    def test_getting_trip(self):
+        response = self.app.post(
+            '/trips/',
+            data=json.dumps(dict(
+                name="trip",
+                waypoints=[
+                    "456N,466E",
+                    "456N,445E"]
+            )),
+            content_type='application/json')
+
+        postResponseJSON = json.loads(response.data.decode())
+        postedObjectID = postResponseJSON["_id"]
+
+        response = self.app.get('/trips/'+postedObjectID)
+        responseJSON = json.loads(response.data.decode())
+
+        self.assertEqual(response.status_code, 200)
+        assert 'trip' in responseJSON["name"]
+        self.assertEqual(["456N,466E", "456N,445E"], responseJSON["waypoints"])
+
+    # User tests
     def test_posting_user(self):
         response = self.app.post(
             '/users/',
@@ -34,7 +75,24 @@ class FlaskrTestCase(unittest.TestCase):
         assert 'application/json' in response.content_type
         assert 'JOSH' in responseJSON["name"]
 
+    def test_getting_user(self):
+        response = self.app.post(
+            '/users/',
+            data=json.dumps(dict(
+                name="JOSHY"
+            )),
+            content_type='application/json')
 
+        postResponseJSON = json.loads(response.data.decode())
+        postedObjectID = postResponseJSON["_id"]
+
+        response = self.app.get('/users/'+postedObjectID)
+        responseJSON = json.loads(response.data.decode())
+
+        self.assertEqual(response.status_code, 200)
+        assert 'JOSHY' in responseJSON["name"]
+
+    # MyObject tests
     def test_posting_myobject(self):
         response = self.app.post(
             '/myobject/',

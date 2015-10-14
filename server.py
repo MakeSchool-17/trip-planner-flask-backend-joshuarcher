@@ -11,6 +11,29 @@ app.db = mongo.develop_database
 api = Api(app)
 
 
+class Trip(Resource):
+
+    def post(self):
+        new_trip = request.json
+        trip_collection = app.db.trips
+        result = trip_collection.insert_one(new_trip)
+
+        trip = trip_collection.find_one({"_id": ObjectId(result.inserted_id)})
+
+        return trip
+
+    def get(self, trip_id):
+        trip_collection = app.db.trips
+        trip = trip_collection.find_one({"_id": ObjectId(trip_id)})
+
+        if trip is None:
+            response = jsonify(data=[])
+            response.status_code = 404
+            return response
+        else:
+            return trip
+
+
 #Implement resource
 class User(Resource):
 
@@ -22,6 +45,17 @@ class User(Resource):
         user = user_collection.find_one({"_id": ObjectId(result.inserted_id)})
 
         return user
+
+    def get(self, user_id):
+        user_collection = app.db.users
+        user = user_collection.find_one({"_id": ObjectId(user_id)})
+
+        if user is None:
+            response = jsonify(data=[])
+            response.status_code = 404
+            return response
+        else:
+            return user
 
 
 #Implement REST Resource
@@ -48,7 +82,8 @@ class MyObject(Resource):
             return myobject
 
 # Add REST resource to API
-api.add_resource(User, '/users/', '/users/<string:users_id>')
+api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>')
+api.add_resource(User, '/users/', '/users/<string:user_id>')
 api.add_resource(MyObject, '/myobject/', '/myobject/<string:myobject_id>')
 
 
