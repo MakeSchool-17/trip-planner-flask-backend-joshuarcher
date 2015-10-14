@@ -10,33 +10,49 @@ mongo = MongoClient('localhost', 27017)
 app.db = mongo.develop_database
 api = Api(app)
 
+
+#Implement resource
+class User(Resource):
+
+    def post(self):
+        new_user = request.json
+        user_collection = app.db.users
+        result = user_collection.insert_one(new_user)
+
+        user = user_collection.find_one({"_id": ObjectId(result.inserted_id)})
+
+        return user
+
+
 #Implement REST Resource
 class MyObject(Resource):
 
     def post(self):
-      new_myobject = request.json
-      myobject_collection = app.db.myobjects
-      result = myobject_collection.insert_one(request.json)
+        new_myobject = request.json
+        myobject_collection = app.db.myobjects
+        result = myobject_collection.insert_one(new_myobject)
 
-      myobject = myobject_collection.find_one({"_id": ObjectId(result.inserted_id)})
+        myobject = myobject_collection.find_one({"_id": ObjectId(result.inserted_id)})
 
-      return myobject
-
-    def get(self, myobject_id):
-      myobject_collection = app.db.myobjects
-      myobject = myobject_collection.find_one({"_id": ObjectId(myobject_id)})
-
-      if myobject is None:
-        response = jsonify(data=[])
-        response.status_code = 404
-        return response
-      else:
         return myobject
 
-# Add REST resource to API
-api.add_resource(MyObject, '/myobject/','/myobject/<string:myobject_id>')
+    def get(self, myobject_id):
+        myobject_collection = app.db.myobjects
+        myobject = myobject_collection.find_one({"_id": ObjectId(myobject_id)})
 
-# provide a custom JSON serializer for flaks_restful
+        if myobject is None:
+            response = jsonify(data=[])
+            response.status_code = 404
+            return response
+        else:
+            return myobject
+
+# Add REST resource to API
+api.add_resource(User, '/users/', '/users/<string:users_id>')
+api.add_resource(MyObject, '/myobject/', '/myobject/<string:myobject_id>')
+
+
+# provide a custom JSON serializer for flask_restful
 @api.representation('application/json')
 def output_json(data, code, headers=None):
     resp = make_response(JSONEncoder().encode(data), code)
