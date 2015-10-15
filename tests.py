@@ -18,7 +18,8 @@ class FlaskrTestCase(unittest.TestCase):
 
         # Drop collection (significantly faster than dropping entire db)
         db.drop_collection('myobjects')
-        db.drop_collection('users')
+        #db.drop_collection('users')
+        db.drop_collection('trips')
 
     # Trip tests
     def test_posting_trip(self):
@@ -26,9 +27,16 @@ class FlaskrTestCase(unittest.TestCase):
             '/trips/',
             data=json.dumps(dict(
                 name="trip",
+                creator="123456789",
                 waypoints=[
-                    "456N,466E",
-                    "456N,445E"]
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321"),
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321")]
             )),
             content_type='application/json')
 
@@ -37,16 +45,33 @@ class FlaskrTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         assert 'application/json' in response.content_type
         assert 'trip' in responseJSON["name"]
-        self.assertEqual(["456N,466E", "456N,445E"], responseJSON["waypoints"])
+        assert '123456789' in responseJSON["creator"]
+        waypoints_test = [
+            dict(
+                name="place",
+                lat="1234",
+                long="4321"),
+            dict(
+                name="place",
+                lat="1234",
+                long="4321")]
+        self.assertEqual(waypoints_test, responseJSON["waypoints"])
 
     def test_getting_trip(self):
         response = self.app.post(
             '/trips/',
             data=json.dumps(dict(
                 name="trip",
+                creator="123456789",
                 waypoints=[
-                    "456N,466E",
-                    "456N,445E"]
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321"),
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321")]
             )),
             content_type='application/json')
 
@@ -58,14 +83,105 @@ class FlaskrTestCase(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         assert 'trip' in responseJSON["name"]
-        self.assertEqual(["456N,466E", "456N,445E"], responseJSON["waypoints"])
+        assert '123456789' in responseJSON["creator"]
+        waypoints_test = [
+            dict(
+                name="place",
+                lat="1234",
+                long="4321"),
+            dict(
+                name="place",
+                lat="1234",
+                long="4321")]
+        self.assertEqual(waypoints_test, responseJSON["waypoints"])
+
+    def test_updating_trip(self):
+        response = self.app.post(
+            '/trips/',
+            data=json.dumps(dict(
+                name="trip",
+                creator="123456789",
+                waypoints=[
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321"),
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321")]
+            )),
+            content_type='application/json')
+        postResponseJSON = json.loads(response.data.decode())
+        postedObjectID = postResponseJSON["_id"]
+
+        # putting new stuff
+        response = self.app.put(
+            '/trips/'+postedObjectID,
+            data=json.dumps(dict(
+                name="test",
+                creator="123456789",
+                waypoints=[
+                    dict(
+                        name="test",
+                        lat="4321",
+                        long="1234"),
+                    dict(
+                        name="test",
+                        lat="4321",
+                        long="1234")]
+            )),
+            content_type='application/json')
+
+        newResponseJSON = json.loads(response.data.decode())
+        newObjectID = newResponseJSON["_id"]
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(newObjectID, postedObjectID)
+        assert 'application/json' in response.content_type
+        assert 'test' in newResponseJSON["name"]
+        waypoints_test = [
+            dict(
+                name="test",
+                lat="4321",
+                long="1234"),
+            dict(
+                name="test",
+                lat="4321",
+                long="1234")]
+        self.assertEqual(waypoints_test, newResponseJSON["waypoints"])
+
+    def test_deleting_trip(self):
+        response = self.app.post(
+            '/trips/',
+            data=json.dumps(dict(
+                name="trip",
+                creator="123456789",
+                waypoints=[
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321"),
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321")]
+            )),
+            content_type='application/json')
+        postResponseJSON = json.loads(response.data.decode())
+        postedObjectID = postResponseJSON["_id"]
+
+        response = self.app.delete('/trips/'+postedObjectID)
+
+        self.assertEqual(response.status_code, 204)
 
     # User tests
     def test_posting_user(self):
         response = self.app.post(
             '/users/',
             data=json.dumps(dict(
-                name="JOSH"
+                name="JOSH",
+                password="test"
             )),
             content_type='application/json')
 
@@ -79,7 +195,8 @@ class FlaskrTestCase(unittest.TestCase):
         response = self.app.post(
             '/users/',
             data=json.dumps(dict(
-                name="JOSHY"
+                name="JOSHY",
+                password="test"
             )),
             content_type='application/json')
 
