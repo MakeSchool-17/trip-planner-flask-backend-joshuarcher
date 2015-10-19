@@ -8,6 +8,7 @@ from bcrypt import hashpw, gensalt
 app = Flask(__name__)
 mongo = MongoClient('localhost', 27017)
 app.db = mongo.develop_database
+app.bcrypt_rounds = 12
 api = Api(app)
 
 
@@ -22,16 +23,23 @@ class Trip(Resource):
 
         return trip
 
-    def get(self, trip_id):
-        trip_collection = app.db.trips
-        trip = trip_collection.find_one({"_id": ObjectId(trip_id)})
-
-        if trip is None:
-            response = jsonify(data=[])
+    def get(self, trip_id=None):
+        if trip_id is None:
+            word = {"josh": "archer"}
+            response = jsonify(data=[word])
             response.status_code = 404
             return response
         else:
-            return trip
+            trip_collection = app.db.trips
+            trip = trip_collection.find_one({"_id": ObjectId(trip_id)})
+            if trip is None:
+                response = jsonify(data=[])
+                response.status_code = 404
+                return response
+            else:
+                return trip
+
+
 
     def put(self, trip_id):
         updated_trip = request.json
@@ -63,10 +71,9 @@ class User(Resource):
 
     def post(self):
         new_user = request.json
-        #hash password
+        # hash password
         user_pass = new_user["password"]
-        user_pass = user_pass.encode(encoding='UTF-8', errors='strict')
-        new_user["password"] = hashpw(user_pass, gensalt(12))
+        new_user['password'] = hash_pass(user_pass)
         user_collection = app.db.users
         result = user_collection.insert_one(new_user)
 
@@ -89,7 +96,7 @@ class User(Resource):
             return user
 
 
-#Implement REST Resource
+# Implement REST Resource
 class MyObject(Resource):
 
     def post(self):
@@ -114,9 +121,40 @@ class MyObject(Resource):
 
 # Add REST resource to API
 api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>')
-#api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>', '/trips/byuser/<string:user_id>')
+# api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>', '/trips/byuser/<string:user_id>')
 api.add_resource(User, '/users/', '/users/<string:user_id>')
 api.add_resource(MyObject, '/myobject/', '/myobject/<string:myobject_id>')
+
+
+def hash_pass(password):
+    encoded_pass = password.encode(encoding='UTF-8', errors='strict')
+    return hashpw(encoded_pass, gensalt(app.bcrypt_rounds))
+
+
+# User Auth code
+def check_auth(username, password):
+    user_collection = app.db.users
+    user = user_collection.find_one({'username': username})
+    if user is None:
+        return False
+    db_password = user['password']
+    hashed_pass = hash_pass(password)
+
+    return hashed_pass == db_password
+
+
+def requires_auth(f):
+    @wraps
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            message = {'error': 'Basic Auth Required'}
+            resp = jsonify(message)
+            resp.status_code = 401
+            return resp
+
+        return f(*args, **kwargs)
+    return decorated
 
 
 # provide a custom JSON serializer for flask_restful
