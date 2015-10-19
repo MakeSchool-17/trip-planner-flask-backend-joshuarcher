@@ -18,11 +18,19 @@ class FlaskrTestCase(unittest.TestCase):
 
         # Drop collection (significantly faster than dropping entire db)
         db.drop_collection('myobjects')
+        
+        # [Ben-G] You should also be dropping the user collection and creating
+        # a new user for each test case. This removes the dependency of your
+        # test on previous state. That's important so that each test can verify the 
+        # code it is testing independently.
+        
         #db.drop_collection('users')
         db.drop_collection('trips')
 
     # Trip tests
     def test_posting_trip(self):
+        # [Ben-G] At some point in future you should pass the an authorization header with 
+        # username and password as part of this request
         response = self.app.post(
             '/trips/',
             data=json.dumps(dict(
@@ -208,6 +216,9 @@ class FlaskrTestCase(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         assert 'JOSHY' in responseJSON["name"]
+
+    # [Ben-G] You can rmove the MyObject tests, they were only meant
+    # as starting point for your project
 
     # MyObject tests
     def test_posting_myobject(self):
