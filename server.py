@@ -36,7 +36,9 @@ class Trip(Resource):
     def put(self, trip_id):
         updated_trip = request.json
         trip_collection = app.db.trips
-
+        
+        # [Ben-G] I assume this is still work in progress?
+        # This should update the existing trip document in the DB
         old_trip = trip_collection.find_one({"_id": ObjectId(trip_id)})
 
         old_trip["name"] = updated_trip["name"]
