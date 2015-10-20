@@ -4,12 +4,46 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 from utils.mongo_json_encoder import JSONEncoder
 from bcrypt import hashpw, gensalt
+from functools import wraps
 # Basic Setup
 app = Flask(__name__)
 mongo = MongoClient('localhost', 27017)
 app.db = mongo.develop_database
 app.bcrypt_rounds = 12
 api = Api(app)
+
+
+def hash_pass(password, salt=None):
+    if salt is None:
+        salt = gensalt(app.bcrypt_rounds)
+    encoded_pass = password.encode(encoding='UTF-8', errors='strict')
+    return hashpw(encoded_pass, salt)
+
+
+# User Auth code
+def check_auth(username, password):
+    user_collection = app.db.users
+    user = user_collection.find_one({'name': username})
+    if user is None:
+        return False
+    db_password = user['password']
+    hashed_pass = hash_pass(password, db_password)
+
+    return hashed_pass == db_password
+
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            message = {'error': 'Basic Auth Required'}
+            resp = jsonify(message)
+            resp.status_code = 401
+            return resp
+
+        return f(*args, **kwargs)
+    return decorated
 
 
 class Trip(Resource):
@@ -38,8 +72,6 @@ class Trip(Resource):
                 return response
             else:
                 return trip
-
-
 
     def put(self, trip_id):
         updated_trip = request.json
@@ -72,7 +104,7 @@ class User(Resource):
     def post(self):
         new_user = request.json
         # hash password
-        user_pass = new_user["password"]
+        user_pass = new_user['password']
         new_user['password'] = hash_pass(user_pass)
         user_collection = app.db.users
         result = user_collection.insert_one(new_user)
@@ -83,6 +115,7 @@ class User(Resource):
 
         return user
 
+    @requires_auth
     def get(self, user_id):
         user_collection = app.db.users
         user = user_collection.find_one({"_id": ObjectId(user_id)})
@@ -124,37 +157,6 @@ api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>')
 # api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>', '/trips/byuser/<string:user_id>')
 api.add_resource(User, '/users/', '/users/<string:user_id>')
 api.add_resource(MyObject, '/myobject/', '/myobject/<string:myobject_id>')
-
-
-def hash_pass(password):
-    encoded_pass = password.encode(encoding='UTF-8', errors='strict')
-    return hashpw(encoded_pass, gensalt(app.bcrypt_rounds))
-
-
-# User Auth code
-def check_auth(username, password):
-    user_collection = app.db.users
-    user = user_collection.find_one({'username': username})
-    if user is None:
-        return False
-    db_password = user['password']
-    hashed_pass = hash_pass(password)
-
-    return hashed_pass == db_password
-
-
-def requires_auth(f):
-    @wraps
-    def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            message = {'error': 'Basic Auth Required'}
-            resp = jsonify(message)
-            resp.status_code = 401
-            return resp
-
-        return f(*args, **kwargs)
-    return decorated
 
 
 # provide a custom JSON serializer for flask_restful

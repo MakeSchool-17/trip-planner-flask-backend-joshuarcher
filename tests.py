@@ -2,6 +2,22 @@ import server
 import unittest
 import json
 from pymongo import MongoClient
+from base64 import b64encode
+
+
+def auth_header_verification(authorized):
+    username = 'joshuarcher'
+    password = ''
+    if authorized:
+        password = 'truepassword'
+    else:
+        password = 'falsepassword'
+    auth_string = "{0}:{1}".format(username, password)
+    auth_basic = 'Basic ' + b64encode(auth_string.encode('UTF-8')).decode('UTF-8')
+
+    return {"Authorization": auth_basic}
+    # auth = 'Basic ' + b64encode(pw_str.encode('utf-8')).decode('utf-8')
+    # return {"Authorization": auth}
 
 
 class FlaskrTestCase(unittest.TestCase):
@@ -20,6 +36,18 @@ class FlaskrTestCase(unittest.TestCase):
         db.drop_collection('myobjects')
         db.drop_collection('users')
         db.drop_collection('trips')
+        response = self.app.post(
+            '/users/',
+            data=json.dumps(dict(
+                name='joshuarcher',
+                password='truepassword'
+            )),
+            content_type='application/json')
+        responseJSON = json.loads(response.data.decode())
+        name = responseJSON['name']
+        if 'joshuarcher' != name:
+            print(responseJSON['name'])
+            print("SOMETHING WENT WRONG IN SETUP")
 
     # Trip tests
     def test_posting_trip(self):
@@ -203,7 +231,8 @@ class FlaskrTestCase(unittest.TestCase):
         postResponseJSON = json.loads(response.data.decode())
         postedObjectID = postResponseJSON["_id"]
 
-        response = self.app.get('/users/'+postedObjectID)
+        auth_header = auth_header_verification(True)
+        response = self.app.get('/users/'+postedObjectID, headers=auth_header)
         responseJSON = json.loads(response.data.decode())
 
         self.assertEqual(response.status_code, 200)
