@@ -48,46 +48,77 @@ def requires_auth(f):
 
 class Trip(Resource):
 
+    @requires_auth
     def post(self):
         new_trip = request.json
+        # set owner to authorized user
+        new_trip['owner'] = request.authorization['username']
         trip_collection = app.db.trips
+        # insert new trip
         result = trip_collection.insert_one(new_trip)
 
         trip = trip_collection.find_one({"_id": ObjectId(result.inserted_id)})
 
         return trip
 
+    @requires_auth
     def get(self, trip_id=None):
+        # [TO:DO] This is where I'd want to return list
+        # of trips belonging to the authroized user
+        trip_collection = app.db.trips
         if trip_id is None:
-            word = {"josh": "archer"}
-            response = jsonify(data=[word])
-            response.status_code = 404
-            return response
+            trips = trip_collection.find({'owner': request.authorization['username']})
+            trips_array = list(trips)
+            return trips_array
         else:
-            trip_collection = app.db.trips
-            trip = trip_collection.find_one({"_id": ObjectId(trip_id)})
+            # add owner in query TO:DO
+            trip = trip_collection.find_one({"_id": ObjectId(trip_id),
+                                            'owner': request.authorization['username']})
             if trip is None:
+                # couldn't find the trip user was looking for
                 response = jsonify(data=[])
                 response.status_code = 404
                 return response
             else:
                 return trip
 
+    @requires_auth
     def put(self, trip_id):
         updated_trip = request.json
         trip_collection = app.db.trips
-        
+
         # [Ben-G] I assume this is still work in progress?
         # This should update the existing trip document in the DB
         old_trip = trip_collection.find_one({"_id": ObjectId(trip_id)})
+        # Check if it's the authorized users trip
+        if old_trip['owner'] != request.authorization['username']:
+            response = jsonify(data=[])
+            response.status_code = 403
+            return response
 
+        # Here I'm sending a whole new trip with the put method
+        # then I update the trip name and the waypoints
+        # by referencing the trip in the request
         old_trip["name"] = updated_trip["name"]
         old_trip["waypoints"] = updated_trip["waypoints"]
 
         return old_trip
 
+    @requires_auth
     def delete(self, trip_id):
         trip_collection = app.db.trips
+        # check if trip exists
+        trip = trip_collection.find_one({'_id': ObjectId(trip_id)})
+        if trip is None:
+            response = jsonify(data=[])
+            response.status_code = 404
+            return response
+        # Check if it's the authorized users trip
+        if trip['owner'] != request.authorization['username']:
+            response = jsonify(data=[])
+            response.status_code = 403
+            return response
+                # check owner TO:DO
         trip = trip_collection.delete_many({"_id": ObjectId(trip_id)})
 
         if trip.deleted_count is 1:
@@ -105,6 +136,13 @@ class User(Resource):
 
     def post(self):
         new_user = request.json
+        # check if user already exists, return 409 if so
+        user_collection = app.db.users
+        user = user_collection.find_one({'name': new_user['name']})
+        if user is not None:
+            response = jsonify(data=[])
+            response.status_code = 409
+            return response
         # hash password
         user_pass = new_user['password']
         new_user['password'] = hash_pass(user_pass)
@@ -121,6 +159,11 @@ class User(Resource):
     def get(self, user_id):
         user_collection = app.db.users
         user = user_collection.find_one({"_id": ObjectId(user_id)})
+        # Check if it's the authorized user
+        if user['name'] != request.authorization['username']:
+            response = jsonify(data=[])
+            response.status_code = 403
+            return response
 
         if user is None:
             response = jsonify(data=[])
@@ -130,35 +173,10 @@ class User(Resource):
             del user['password']
             return user
 
-
-# Implement REST Resource
-class MyObject(Resource):
-
-    def post(self):
-        new_myobject = request.json
-        myobject_collection = app.db.myobjects
-        result = myobject_collection.insert_one(new_myobject)
-
-        myobject = myobject_collection.find_one({"_id": ObjectId(result.inserted_id)})
-
-        return myobject
-
-    def get(self, myobject_id):
-        myobject_collection = app.db.myobjects
-        myobject = myobject_collection.find_one({"_id": ObjectId(myobject_id)})
-
-        if myobject is None:
-            response = jsonify(data=[])
-            response.status_code = 404
-            return response
-        else:
-            return myobject
-
 # Add REST resource to API
 api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>')
 # api.add_resource(Trip, '/trips/', '/trips/<string:trip_id>', '/trips/byuser/<string:user_id>')
 api.add_resource(User, '/users/', '/users/<string:user_id>')
-api.add_resource(MyObject, '/myobject/', '/myobject/<string:myobject_id>')
 
 
 # provide a custom JSON serializer for flask_restful

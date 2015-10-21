@@ -5,11 +5,11 @@ from pymongo import MongoClient
 from base64 import b64encode
 
 
-def auth_header_verification(authorized):
-    username = 'joshuarcher'
+def auth_header_verification(authorized, usernamee='joshuarcher', passwordd='truepassword'):
+    username = usernamee
     password = ''
     if authorized:
-        password = 'truepassword'
+        password = passwordd
     else:
         password = 'falsepassword'
     auth_string = "{0}:{1}".format(username, password)
@@ -41,6 +41,7 @@ class FlaskrTestCase(unittest.TestCase):
         db.drop_collection('myobjects')
         db.drop_collection('users')
         db.drop_collection('trips')
+
         response = self.app.post(
             '/users/',
             data=json.dumps(dict(
@@ -62,7 +63,6 @@ class FlaskrTestCase(unittest.TestCase):
             '/trips/',
             data=json.dumps(dict(
                 name="trip",
-                creator="123456789",
                 waypoints=[
                     dict(
                         name="place",
@@ -73,14 +73,15 @@ class FlaskrTestCase(unittest.TestCase):
                         lat="1234",
                         long="4321")]
             )),
+            headers=auth_header_verification(True),
             content_type='application/json')
 
         responseJSON = json.loads(response.data.decode())
 
         self.assertEqual(response.status_code, 200)
         assert 'application/json' in response.content_type
-        assert 'trip' in responseJSON["name"]
-        assert '123456789' in responseJSON["creator"]
+        assert 'trip' in responseJSON['name']
+        assert 'joshuarcher' in responseJSON['owner']
         waypoints_test = [
             dict(
                 name="place",
@@ -91,13 +92,21 @@ class FlaskrTestCase(unittest.TestCase):
                 lat="1234",
                 long="4321")]
         self.assertEqual(waypoints_test, responseJSON["waypoints"])
+
+    def test_getting_trip_many(self):
+        response = self.app.post('/trips/', data=json.dumps(dict(name="trip1", waypoints=[dict(name="place", lat="1234", long="4321"), dict(name="place", lat="1234", long="4321")])), headers=auth_header_verification(True), content_type='application/json')
+        response = self.app.post('/trips/', data=json.dumps(dict(name="trip2", waypoints=[dict(name="place", lat="1234", long="4321"), dict(name="place", lat="1234", long="4321")])), headers=auth_header_verification(True), content_type='application/json')
+        response = self.app.post('/trips/', data=json.dumps(dict(name="trip3", waypoints=[dict(name="place", lat="1234", long="4321"), dict(name="place", lat="1234", long="4321")])), headers=auth_header_verification(True), content_type='application/json')
+
+        response = self.app.get('/trips/', headers=auth_header_verification(True))
+        responseJSON = json.loads(response.data.decode())
+        self.assertEqual(3, len(responseJSON))
 
     def test_getting_trip(self):
         response = self.app.post(
             '/trips/',
             data=json.dumps(dict(
                 name="trip",
-                creator="123456789",
                 waypoints=[
                     dict(
                         name="place",
@@ -108,17 +117,17 @@ class FlaskrTestCase(unittest.TestCase):
                         lat="1234",
                         long="4321")]
             )),
+            headers=auth_header_verification(True),
             content_type='application/json')
 
         postResponseJSON = json.loads(response.data.decode())
         postedObjectID = postResponseJSON["_id"]
 
-        response = self.app.get('/trips/'+postedObjectID)
+        response = self.app.get('/trips/'+postedObjectID, headers=auth_header_verification(True))
         responseJSON = json.loads(response.data.decode())
-
         self.assertEqual(response.status_code, 200)
         assert 'trip' in responseJSON["name"]
-        assert '123456789' in responseJSON["creator"]
+        assert 'joshuarcher' in responseJSON["owner"]
         waypoints_test = [
             dict(
                 name="place",
@@ -130,12 +139,11 @@ class FlaskrTestCase(unittest.TestCase):
                 long="4321")]
         self.assertEqual(waypoints_test, responseJSON["waypoints"])
 
-    def test_updating_trip(self):
+    def test_getting_trip_unauthorized(self):
         response = self.app.post(
             '/trips/',
             data=json.dumps(dict(
                 name="trip",
-                creator="123456789",
                 waypoints=[
                     dict(
                         name="place",
@@ -146,6 +154,33 @@ class FlaskrTestCase(unittest.TestCase):
                         lat="1234",
                         long="4321")]
             )),
+            headers=auth_header_verification(True),
+            content_type='application/json')
+
+        postResponseJSON = json.loads(response.data.decode())
+        postedObjectID = postResponseJSON["_id"]
+
+        response = self.app.get('/trips/'+postedObjectID, headers=auth_header_verification(False))
+        responseJSON = json.loads(response.data.decode())
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_updating_trip(self):
+        response = self.app.post(
+            '/trips/',
+            data=json.dumps(dict(
+                name="trip",
+                waypoints=[
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321"),
+                    dict(
+                        name="place",
+                        lat="1234",
+                        long="4321")]
+            )),
+            headers=auth_header_verification(True),
             content_type='application/json')
         postResponseJSON = json.loads(response.data.decode())
         postedObjectID = postResponseJSON["_id"]
@@ -155,7 +190,6 @@ class FlaskrTestCase(unittest.TestCase):
             '/trips/'+postedObjectID,
             data=json.dumps(dict(
                 name="test",
-                creator="123456789",
                 waypoints=[
                     dict(
                         name="test",
@@ -166,6 +200,7 @@ class FlaskrTestCase(unittest.TestCase):
                         lat="4321",
                         long="1234")]
             )),
+            headers=auth_header_verification(True),
             content_type='application/json')
 
         newResponseJSON = json.loads(response.data.decode())
@@ -191,7 +226,6 @@ class FlaskrTestCase(unittest.TestCase):
             '/trips/',
             data=json.dumps(dict(
                 name="trip",
-                creator="123456789",
                 waypoints=[
                     dict(
                         name="place",
@@ -202,11 +236,13 @@ class FlaskrTestCase(unittest.TestCase):
                         lat="1234",
                         long="4321")]
             )),
+            headers=auth_header_verification(True),
             content_type='application/json')
         postResponseJSON = json.loads(response.data.decode())
         postedObjectID = postResponseJSON["_id"]
 
-        response = self.app.delete('/trips/'+postedObjectID)
+        auth_header = auth_header_verification(True)
+        response = self.app.delete('/trips/'+postedObjectID, headers=auth_header)
 
         self.assertEqual(response.status_code, 204)
 
@@ -226,6 +262,19 @@ class FlaskrTestCase(unittest.TestCase):
         assert 'application/json' in response.content_type
         assert 'JOSH' in responseJSON["name"]
 
+    def test_posting_existing_user(self):
+        response = self.app.post(
+            '/users/',
+            data=json.dumps(dict(
+                name="joshuarcher",
+                password="test"
+            )),
+            content_type='application/json')
+
+        responseJSON = json.loads(response.data.decode())
+
+        self.assertEqual(response.status_code, 409)
+
     def test_getting_user(self):
         response = self.app.post(
             '/users/',
@@ -238,12 +287,30 @@ class FlaskrTestCase(unittest.TestCase):
         postResponseJSON = json.loads(response.data.decode())
         postedObjectID = postResponseJSON["_id"]
 
-        auth_header = auth_header_verification(True)
+        auth_header = auth_header_verification(True, 'JOSHY', 'test')
         response = self.app.get('/users/'+postedObjectID, headers=auth_header)
         responseJSON = json.loads(response.data.decode())
 
         self.assertEqual(response.status_code, 200)
         assert 'JOSHY' in responseJSON["name"]
+
+    def test_getting_unverified_user(self):
+        response = self.app.post(
+            '/users/',
+            data=json.dumps(dict(
+                name="JOSHY",
+                password="test"
+            )),
+            content_type='application/json')
+
+        postResponseJSON = json.loads(response.data.decode())
+        postedObjectID = postResponseJSON['_id']
+
+        auth_header = auth_header_verification(True)
+        response = self.app.get('/users/'+postedObjectID, headers=auth_header)
+        responseJSON = json.loads(response.data.decode())
+
+        self.assertEqual(response.status_code, 403)
 
     def test_verify_user(self):
         response = self.app.post(
@@ -258,44 +325,6 @@ class FlaskrTestCase(unittest.TestCase):
         postedObjectID = postResponseJSON['_id']
 
         self.assertEqual(1, 1)
-
-    # [Ben-G] You can rmove the MyObject tests, they were only meant
-    # as starting point for your project
-    # MyObject tests
-    def test_posting_myobject(self):
-        response = self.app.post(
-            '/myobject/',
-            data=json.dumps(dict(
-                name="A object"
-            )),
-            content_type='application/json')
-
-        responseJSON = json.loads(response.data.decode())
-
-        self.assertEqual(response.status_code, 200)
-        assert 'application/json' in response.content_type
-        assert 'A object' in responseJSON["name"]
-
-    def test_getting_object(self):
-        response = self.app.post(
-            '/myobject/',
-            data=json.dumps(dict(
-                name="Another object"
-            )),
-            content_type='application/json')
-
-        postResponseJSON = json.loads(response.data.decode())
-        postedObjectID = postResponseJSON["_id"]
-
-        response = self.app.get('/myobject/'+postedObjectID)
-        responseJSON = json.loads(response.data.decode())
-
-        self.assertEqual(response.status_code, 200)
-        assert 'Another object' in responseJSON["name"]
-
-    def test_getting_non_existent_object(self):
-        response = self.app.get('/myobject/55f0cbb4236f44b7f0e3cb23')
-        self.assertEqual(response.status_code, 404)
 
 if __name__ == '__main__':
     unittest.main()
